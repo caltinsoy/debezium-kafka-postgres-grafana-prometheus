@@ -1,0 +1,199 @@
+version: "3.2"
+services:
+  zookeeper:
+    build: ./zookeeper
+    container_name: zookeeper
+    restart: always
+    command:
+      - "start-foreground"
+    ports:
+      - "2181:2181"
+
+  kafka:
+    build: ./kafka
+    container_name: kafka
+    restart: always
+    links:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+      KAFKA_BROKER_ID: 1
+      KAFKA_ADVERTISED_PORT: 9092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_ADVERTISED_HOST_NAME: 192.168.0.106
+      KAFKA_JMX_OPTS: "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=kafka -Dcom.sun.management.jmxremote.rmi.port=1099"
+      JMX_PORT: 1099
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter
+    container_name: kafka-exporter
+    restart: always
+    links:
+      - kafka
+    depends_on:
+      - kafka
+    ports:
+      - "9308:9308"
+    command: --kafka.server=kafka:29092
+
+  jmxexporter:
+    image: sscaling/jmx-prometheus-exporter
+    container_name: jmxexporter
+    ports:
+      - "5556:5556"
+    environment:
+      SERVICE_PORT: 5556
+    links:
+      - kafka
+    depends_on:
+      - kafka
+    volumes:
+      - ./kafka/prom-jmx-agent-config.yml:/opt/jmx_exporter/config.yml
+
+  prometheus:
+    build: ./prometheus
+    container_name: prometheus
+    restart: always
+    links:
+      - kafka-exporter
+      - jmxexporter
+      - kconnect
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus:/etc/prometheus/
+      - prometheus-data:/prometheus
+    command: --web.enable-lifecycle  --config.file=/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    restart: always
+    depends_on:
+      - prometheus
+    links:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_EXPLORE_ENABLED: "true"
+    volumes:
+      - "postgres:/var/lib/grafana"
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+
+  postgres:
+    # *-----------------------------*
+    # To connect to the DB:
+    #   docker exec -it postgres bash -c 'psql -U $POSTGRES_USER $POSTGRES_DB'
+    # docker exec -it postgres bash -c 'psql -U postgres sms_service'
+    # restore the database
+    #  pg_restore -h localhost -p 5432 -U postgres -d sms_service -v --clean 2022-08-29_sms_service.backup
+    # *-----------------------------*
+    image: debezium/postgres
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - ./postgres-data:/var/lib/postgresql
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter
+    container_name: postgres-exporter
+    ports:
+      - "9187:9187"
+    environment:
+        #- DATA_SOURCE_NAME=postgresql://postgres:password@postgres-db:5432/postgres?sslmode=disable
+        - DATA_SOURCE_URI=postgres:5432/postgres?sslmode=disable
+        - DATA_SOURCE_USER=postgres
+        - DATA_SOURCE_PASS=postgres
+    links:
+      - postgres
+      - prometheus
+
+  kconnect:
+    image: debezium/connect:latest
+    container_name: kconnect
+    restart: on-failure
+    links:
+      - zookeeper
+      - postgres
+    depends_on:
+      - kafka
+      - zookeeper
+      - postgres
+    ports:
+      - "8083:8083"
+      - "9012:9012"
+      - "8081:8080" #metrics related port
+    environment:
+      GROUP_ID: 2
+      CONFIG_STORAGE_TOPIC: my_connect_configs
+      OFFSET_STORAGE_TOPIC: my_connect_offsets
+      STATUS_STORAGE_TOPIC: my_connect_statuses
+      BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_OPTS: -javaagent:/kafka/connect/metrics/jmx_prometheus_javaagent.jar=8080:/kafka/connect/metrics/jmx-kafka-connect-config.yml
+      JMXHOST: "0.0.0.0"
+      JMXPORT: 9012
+    # *-----------------------------*
+    # Head to https://www.confluent.io/hub/ and download confluent-kafka-connect-jdbc - direct url https://www.confluent.io/hub/confluentinc/kafka-connect-jdbc :
+    # unzip in jars folder and use appropriate directory path in my case it's "./" till jars directory
+    # *-----------------------------*
+    volumes:
+      - ./jars/jmx_prometheus_javaagent-0.16.1.jar:/kafka/connect/metrics/jmx_prometheus_javaagent.jar
+      - ./conf/jmx-kafka-connect-config.yml:/kafka/connect/metrics/jmx-kafka-connect-config.yml
+      - $PWD/jars/debezium-scripting-2.1.1.Final.jar:/kafka/connect/debezium-connector-postgres/debezium-scripting-2.1.1.Final.jar
+      - $PWD/jars/groovy-3.0.5.jar:/kafka/connect/debezium-connector-postgres/groovy-3.0.5.jar
+      - $PWD/jars/groovy-jsr223-3.0.5.jar:/kafka/connect/debezium-connector-postgres/groovy-jsr223-3.0.5.jar
+      - $PWD/jars/groovy-json-3.0.5.jar:/kafka/connect/debezium-connector-postgres/groovy-json-3.0.5.jar
+
+  ui:
+    container_name: debezium-ui
+    image: debezium/debezium-ui
+    ports:
+      - "8088:8080"
+    environment:
+      KAFKA_CONNECT_URIS: http://kconnect:8083
+    depends_on:
+      - kconnect
+
+  kafka-lag-exporter:
+    image: seglo/kafka-lag-exporter:0.7.0
+    container_name: kafka-lag-exporter
+    restart: always
+    ports:
+      - "9999:9999"
+    volumes:
+      - ./kafka-lag-exporter/:/opt/docker/conf/
+
+
+
+  kafka-manager:
+    image: sheepkiller/kafka-manager:latest
+    container_name: kafka-manager
+    ports:
+      - "9000:9000"
+    links:
+      - zookeeper
+      - kafka
+    environment:
+      ZK_HOSTS: "zookeeper:2181"
+
+
+volumes:
+  prometheus-data:
+  postgres:
+
+
