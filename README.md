@@ -1,6 +1,6 @@
 # debezium-kafka-postgres-grafana-prometheus
 
-This is a simple repository that aims to  try to show metrics of  ***Postgres, Kafka and Spring Boot*** application by using some dockerized  jmx exporters. There are couple of JMX exporters that are available in **docker** file.
+This is a simple repository that aims to show metrics of  ***Postgres, Kafka and Spring Boot*** application by using some dockerized  jmx exporters. There are couple of JMX exporters that are available in **docker** file.
 
 You can also setup your connectors by using Debezium UI (http://localhost:8088/). 
 
