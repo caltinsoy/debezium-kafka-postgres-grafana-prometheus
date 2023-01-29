@@ -69,7 +69,7 @@ More Detail about Kafka Metrics : https://github.com/danielqsj/kafka_exporter#gr
 * For SpringBoot : https://grafana.com/grafana/dashboards/12900-springboot-apm-dashboard/
 
 You can also create your dashboards with json file in ***docker/dashboards*** directory.In Grafana, You need to go DashBoard tab and then click Import , you will see the Upload Json File Section.
-
+ 
 There are many dashboards according to your need on https://grafana.com/grafana/dashboards/ . 
 
 ## Postgresql
