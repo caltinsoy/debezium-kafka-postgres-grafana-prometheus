@@ -20,7 +20,7 @@ When you run your container , check it out from here : http://localhost:9000/
 ## Grafana & Prometheus
 Grafana is the open source analytics & monitoring solution , Prometheus is an open-source systems monitoring and alerting toolkit.
 
-You will be able to access to ***Grafana*** via localhost:3000 . Before you import dashboards, you need to create your data source  like Postgre, Prometheus and more ... But in this example, I imported ***Prometheus*** as a data source , cause as you guees it , we will be taking metrics by postgres-exporter from Postgres. When you run your docker compose file  you will be accessing to Prometheus http://localhost:9090  .
+You will be able to access to ***Grafana*** via http://localhost:3000 . Before you import dashboards, you need to create your data source  like Postgre, Prometheus and more ... But in this example, I imported ***Prometheus*** as a data source , cause as you guees it , we will be taking metrics by postgres-exporter from Postgres. When you run your docker compose file  you will be accessing to Prometheus http://localhost:9090  .
 
 ## Kafka Metrics
 You also will be able to access Kafka metrics like  :
