@@ -8,7 +8,7 @@ You can also setup your connectors by using Debezium UI (http://localhost:8088/)
 
 * If you want to create your connector , **create-connector.json** file in debezium docker\directory , you just need to send a **POST** request to http://localhost:8083/connectors/.
 * If you want to update your connector config(**update-connector.json**) : **PUT**  http://localhost:8083/connectors/{your_connector_name}/config
-* When you want to learn update of your connector : **GET** http://localhost:8083/connectors/{your_connector_name}/status
+* When you want to learn state of your connector : **GET** http://localhost:8083/connectors/{your_connector_name}/status
 * or want to get  your connector config : **GET** http://localhost:8083/connectors/{your_connector_name}/config
 
 For More Detail  : https://debezium.io/documentation/reference/stable/operations/debezium-ui.html
